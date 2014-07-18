@@ -18,7 +18,7 @@ class XssServiceProvider extends ServiceProvider {
 	 */
 	public function register()
 	{
-		//
+		$this->app->bind('xss', 'Owlgrin\Xss\Xss');
 	}
 
 	/**
