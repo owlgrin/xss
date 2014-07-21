@@ -58,6 +58,15 @@ class Xss {
 	);
 
 	/**
+	 * Character set
+	 *
+	 * Will be overriden by the constructor.
+	 *
+	 * @var	string
+	 */
+	public $charset = 'UTF-8';
+
+	/**
 	 * XSS Hash
 	 *
 	 * Random Hash for protecting URLs.
@@ -86,7 +95,6 @@ class Xss {
 		'document.write'	=> '[removed]',
 		'.parentNode'		=> '[removed]',
 		'.innerHTML'		=> '[removed]',
-		'window.location'	=> '[removed]',
 		'-moz-binding'		=> '[removed]',
 		'<!--'				=> '&lt;!--',
 		'-->'				=> '--&gt;',
@@ -101,9 +109,13 @@ class Xss {
 	 */
 	protected $_never_allowed_regex = array(
 		'javascript\s*:',
+		'(document|(document\.)?window)\.(location|on\w*)',
 		'expression\s*(\(|&\#40;)', // CSS and IE
 		'vbscript\s*:', // IE, surprise!
-		'Redirect\s+302',
+		'wscript\s*:', // IE
+		'jscript\s*:', // IE
+		'vbs\s*:', // IE
+		'Redirect\s+30\d',
 		"([\"'])?data\s*:[^\\1]*?base64[^\\1]*?,[^\\1]*?\\1?"
 	);
 
@@ -142,14 +154,14 @@ class Xss {
 		{
 			while (list($key) = each($str))
 			{
-				$str[$key] = $this->clean($str[$key]);
+				$str[$key] = $this->xss_clean($str[$key]);
 			}
 
 			return $str;
 		}
 
-		// Remove Invisible Characters and validate entities in URLs
-		$str = $this->_validate_entities($this->remove_invisible_characters($str));
+		// Remove Invisible Characters
+		$str = $this->remove_invisible_characters($str);
 
 		/*
 		 * URL Decode
@@ -160,7 +172,11 @@ class Xss {
 		 *
 		 * Note: Use rawurldecode() so it does not remove plus signs
 		 */
-		$str = rawurldecode($str);
+		do
+		{
+			$str = rawurldecode($str);
+		}
+		while (preg_match('/%[0-9a-f]{2,}/i', $str));
 
 		/*
 		 * Convert character entities to ASCII
@@ -219,8 +235,9 @@ class Xss {
 		 * These words are compacted back to their correct state.
 		 */
 		$words = array(
-			'javascript', 'expression', 'vbscript', 'script', 'base64',
-			'applet', 'alert', 'document', 'write', 'cookie', 'window'
+			'javascript', 'expression', 'vbscript', 'jscript', 'wscript',
+			'vbs', 'script', 'base64', 'applet', 'alert', 'document',
+			'write', 'cookie', 'window', 'confirm', 'prompt'
 		);
 
 		foreach ($words as $word)
@@ -237,6 +254,12 @@ class Xss {
 		 * We used to do some version comparisons and use of stripos for PHP5,
 		 * but it is dog slow compared to these simplified non-capturing
 		 * preg_match(), especially if the pattern exists in the string
+		 *
+		 * Note: It was reported that not only space characters, but all in
+		 * the following pattern can be parsed as separators between a tag name
+		 * and its attributes: [\d\s"\'`;,\/\=\(\x00\x0B\x09\x0C]
+		 * ... however, remove_invisible_characters() above already strips the
+		 * hex-encoded ones, so we'll skip them below.
 		 */
 		do
 		{
@@ -244,12 +267,12 @@ class Xss {
 
 			if (preg_match('/<a/i', $str))
 			{
-				$str = preg_replace_callback('#<a\s+([^>]*?)(?:>|$)#si', array($this, '_js_link_removal'), $str);
+				$str = preg_replace_callback('#<a[^a-z0-9>]+([^>]*?)(?:>|$)#si', array($this, '_js_link_removal'), $str);
 			}
 
 			if (preg_match('/<img/i', $str))
 			{
-				$str = preg_replace_callback('#<img\s+([^>]*?)(?:\s?/?>|$)#si', array($this, '_js_img_removal'), $str);
+				$str = preg_replace_callback('#<img[^a-z0-9]+([^>]*?)(?:\s?/?>|$)#si', array($this, '_js_img_removal'), $str);
 			}
 
 			if (preg_match('/script|xss/i', $str))
@@ -273,7 +296,7 @@ class Xss {
 		 * So this: <blink>
 		 * Becomes: &lt;blink&gt;
 		 */
-		$naughty = 'alert|applet|audio|basefont|base|behavior|bgsound|blink|body|embed|expression|form|frameset|frame|head|html|ilayer|iframe|input|isindex|layer|link|meta|object|plaintext|style|script|textarea|title|video|xml|xss';
+		$naughty = 'alert|prompt|confirm|applet|audio|basefont|base|behavior|bgsound|blink|body|embed|expression|form|frameset|frame|head|html|ilayer|iframe|input|button|select|isindex|layer|link|meta|keygen|object|plaintext|style|script|textarea|title|math|video|svg|xml|xss';
 		$str = preg_replace_callback('#<(/*\s*)('.$naughty.')([^><]*)([><]*)#is', array($this, '_sanitize_naughty_html'), $str);
 
 		/*
@@ -288,7 +311,7 @@ class Xss {
 		 * For example:	eval('some code')
 		 * Becomes:	eval&#40;'some code'&#41;
 		 */
-		$str = preg_replace('#(alert|cmd|passthru|eval|exec|expression|system|fopen|fsockopen|file|file_get_contents|readfile|unlink)(\s*)\((.*?)\)#si',
+		$str = preg_replace('#(alert|prompt|confirm|cmd|passthru|eval|exec|expression|system|fopen|fsockopen|file|file_get_contents|readfile|unlink)(\s*)\((.*?)\)#si',
 					'\\1\\2&#40;\\3&#41;',
 					$str);
 
@@ -311,7 +334,6 @@ class Xss {
 			return ($str === $converted_string);
 		}
 
-		//log_message('debug', 'XSS Filtering completed');
 		return $str;
 	}
 
@@ -361,21 +383,57 @@ class Xss {
 			return $str;
 		}
 
-		if (empty($charset))
-		{
-			$charset = $this->_charset;
-		}
+		static $_entities;
+
+		isset($charset) OR $charset = $this->charset;
+		$flag = is_php('5.4')
+			? ENT_COMPAT | ENT_HTML5
+			: ENT_COMPAT;
 
 		do
 		{
-			$matches = $matches1 = 0;
+			$str_compare = $str;
 
-			$str = html_entity_decode($str, ENT_COMPAT, $charset);
-			$str = preg_replace('~&#x(0*[0-9a-f]{2,5})~ei', 'chr(hexdec("\\1"))', $str, -1, $matches);
-			$str = preg_replace('~&#([0-9]{2,4})~e', 'chr(\\1)', $str, -1, $matches1);
+			// Decode standard entities, avoiding false positives
+			if ($c = preg_match_all('/&[a-z]{2,}(?![a-z;])/i', $str, $matches))
+			{
+				if ( ! isset($_entities))
+				{
+					$_entities = array_map('strtolower', get_html_translation_table(HTML_ENTITIES, $flag, $charset));
+
+					// If we're not on PHP 5.4+, add the possibly dangerous HTML 5
+					// entities to the array manually
+					if ($flag === ENT_COMPAT)
+					{
+						$_entities[':'] = '&colon;';
+						$_entities['('] = '&lpar;';
+						$_entities[')'] = '&rpar';
+						$_entities["\n"] = '&newline;';
+						$_entities["\t"] = '&tab;';
+					}
+				}
+
+				$replace = array();
+				$matches = array_unique(array_map('strtolower', $matches[0]));
+				for ($i = 0; $i < $c; $i++)
+				{
+					if (($char = array_search($matches[$i].';', $_entities, TRUE)) !== FALSE)
+					{
+						$replace[$matches[$i]] = $char;
+					}
+				}
+
+				$str = str_ireplace(array_keys($replace), array_values($replace), $str);
+			}
+
+			// Decode numeric & UTF16 two byte entities
+			$str = html_entity_decode(
+				preg_replace('/(&#(?:x0*[0-9a-f]{2,5}(?![0-9a-f;]))|(?:0*\d{2,4}(?![0-9;])))/iS', '$1;', $str),
+				$flag,
+				$charset
+			);
 		}
-		while ($matches OR $matches1);
-
+		while ($str_compare !== $str);
 		return $str;
 	}
 
@@ -420,7 +478,7 @@ class Xss {
 	 */
 	public function strip_image_tags($str)
 	{
-		return preg_replace(array('#<img\s+.*?src\s*=\s*["\'](.+?)["\'].*?\>#', '#<img\s+.*?src\s*=\s*(.+?).*?\>#'), '\\1', $str);
+		return preg_replace(array('#<img[\s/]+.*?src\s*=\s*["\'](.+?)["\'].*?\>#', '#<img[\s/]+.*?src\s*=\s*(.+?).*?\>#'), '\\1', $str);
 	}
 
 	// ----------------------------------------------------------------
@@ -465,8 +523,7 @@ class Xss {
 	 */
 	protected function _remove_evil_attributes($str, $is_image)
 	{
-		// All javascript event handlers (e.g. onload, onclick, onmouseover), id, class, and xmlns
-		$evil_attributes = array('on\w*', 'id', 'class', 'xmlns', 'formaction');
+		$evil_attributes = array('on\w*', 'style', 'xmlns', 'formaction', 'form', 'action', 'xlink:href');
 
 		if ($is_image === TRUE)
 		{
@@ -482,7 +539,7 @@ class Xss {
 			$attribs = array();
 
 			// find occurrences of illegal attribute strings with quotes (042 and 047 are octal quotes)
-			preg_match_all('/('.implode('|', $evil_attributes).')\s*=\s*(\042|\047)([^\\2]*?)(\\2)/is', $str, $matches, PREG_SET_ORDER);
+			preg_match_all('/(?<!\w)('.implode('|', $evil_attributes).')\s*=\s*(\042|\047)([^\\2]*?)(\\2)/is', $str, $matches, PREG_SET_ORDER);
 
 			foreach ($matches as $attr)
 			{
@@ -490,7 +547,7 @@ class Xss {
 			}
 
 			// find occurrences of illegal attribute strings without quotes
-			preg_match_all('/('.implode('|', $evil_attributes).')\s*=\s*([^\s>]*)/is', $str, $matches, PREG_SET_ORDER);
+			preg_match_all('/(?<!\w)('.implode('|', $evil_attributes).')\s*=\s*([^\s>]*)/is', $str, $matches, PREG_SET_ORDER);
 
 			foreach ($matches as $attr)
 			{
@@ -544,7 +601,7 @@ class Xss {
 	protected function _js_link_removal($match)
 	{
 		return str_replace($match[1],
-					preg_replace('#href=.*?(?:alert\(|alert&\#40;|javascript:|livescript:|mocha:|charset=|window\.|document\.|\.cookie|<script|<xss|data\s*:)#si',
+					preg_replace('#href=.*?(?:(?:alert|prompt|confirm)(?:\(|&\#40;)|javascript:|livescript:|mocha:|charset=|window\.|document\.|\.cookie|<script|<xss|data\s*:)#si',
 							'',
 							$this->_filter_attributes(str_replace(array('<', '>'), '', $match[1]))
 					),
@@ -569,7 +626,7 @@ class Xss {
 	protected function _js_img_removal($match)
 	{
 		return str_replace($match[1],
-					preg_replace('#src=.*?(?:alert\(|alert&\#40;|javascript:|livescript:|mocha:|charset=|window\.|document\.|\.cookie|<script|<xss|base64\s*,)#si',
+					preg_replace('#src=.*?(?:(?:alert|prompt|confirm)(?:\(|&\#40;)|javascript:|livescript:|mocha:|charset=|window\.|document\.|\.cookie|<script|<xss|base64\s*,)#si',
 							'',
 							$this->_filter_attributes(str_replace(array('<', '>'), '', $match[1]))
 					),
@@ -627,46 +684,16 @@ class Xss {
 	 */
 	protected function _decode_entity($match)
 	{
-		return $this->entity_decode($match[0], strtoupper($this->_charset));
-	}
-
-	// --------------------------------------------------------------------
-
-	/**
-	 * Validate URL entities
-	 *
-	 * @used-by	Xss::xss_clean()
-	 * @param 	string	$str
-	 * @return 	string
-	 */
-	protected function _validate_entities($str)
-	{
-		/*
-		 * Protect GET variables in URLs
-		 */
-
+		// Protect GET variables in URLs
 		// 901119URL5918AMP18930PROTECT8198
-		$str = preg_replace('|\&([a-z\_0-9\-]+)\=([a-z\_0-9\-]+)|i', $this->xss_hash().'\\1=\\2', $str);
+		$match = preg_replace('|\&([a-z\_0-9\-]+)\=([a-z\_0-9\-/]+)|i', $this->xss_hash().'\\1=\\2', $match[0]);
 
-		/*
-		 * Validate standard character entities
-		 *
-		 * Add a semicolon if missing.  We do this to enable
-		 * the conversion of entities to ASCII later.
-		 */
-		$str = preg_replace('#(&\#?[0-9a-z]{2,})([\x00-\x20])*;?#i', '\\1;\\2', $str);
-
-		/*
-		 * Validate UTF16 two byte encoding (x00)
-		 *
-		 * Just as above, adds a semicolon if missing.
-		 */
-		$str = preg_replace('#(&\#x?)([0-9A-F]+);?#i', '\\1\\2;', $str);
-
-		/*
-		 * Un-Protect GET variables in URLs
-		 */
-		return str_replace($this->xss_hash(), '&', $str);
+		// Decode, then un-protect URL GET vars
+		return str_replace(
+			$this->xss_hash(),
+			'&',
+			$this->entity_decode($match, $this->charset)
+		);
 	}
 
 	// ----------------------------------------------------------------------
