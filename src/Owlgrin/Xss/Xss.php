@@ -67,6 +67,41 @@ class Xss {
 	public $charset = 'UTF-8';
 
 	/**
+	 * Whitelist of HTML tags that are allowed
+	 *
+	 * @var array
+	 */
+	protected $allowed_html_tags = array(
+		'<h1>',
+		'<h2>',
+		'<h3>',
+		'<h4>',
+		'<h5>',
+		'<h6>',
+		'<strong>',
+		'<em>',
+		'<sub>',
+		'<sup>',
+		'<small>',
+		'<code>',
+		'<pre>',
+		'<strike>',
+		'<table>',
+		'<thead>',
+		'<tbody>',
+		'<tfoot>',
+		'<tr>',
+		'<th>',
+		'<td>',
+		'<ul>',
+		'<ol>',
+		'<li>',
+		'<a>',
+		'<img>',
+		'<iframe>'
+	);
+
+	/**
 	 * XSS Hash
 	 *
 	 * Random Hash for protecting URLs.
@@ -154,11 +189,14 @@ class Xss {
 		{
 			while (list($key) = each($str))
 			{
-				$str[$key] = $this->xss_clean($str[$key]);
+				$str[$key] = $this->clean($str[$key]);
 			}
 
 			return $str;
 		}
+
+		// Remove all the tags that aren't in the whitelist
+		$str = $this->strip_tags($str);
 
 		// Remove Invisible Characters
 		$str = $this->remove_invisible_characters($str);
@@ -335,6 +373,21 @@ class Xss {
 		}
 
 		return $str;
+	}
+
+	// --------------------------------------------------------------------
+
+	/**
+	 * Strip Tags
+	 *
+	 * Strips all the tags that aren't allowed
+	 *
+	 * @see		Xss::$allowed_html_tags
+	 * @return	string
+	 */
+	protected function strip_tags($str)
+	{
+		return strip_tags($str, implode('', $this->allowed_html_tags));
 	}
 
 	// --------------------------------------------------------------------
@@ -613,7 +666,7 @@ class Xss {
 	/**
 	 * JS Image Removal
 	 *
-	 * Callback method for xss_clean() to sanitize image tags.
+	 * Callback method for clean() to sanitize image tags.
 	 *
 	 * This limits the PCRE backtracks, making it more performance friendly
 	 * and prevents PREG_BACKTRACK_LIMIT_ERROR from being triggered in
@@ -678,7 +731,7 @@ class Xss {
 	/**
 	 * HTML Entity Decode Callback
 	 *
-	 * @used-by	Xss::xss_clean()
+	 * @used-by	Xss::clean()
 	 * @param	array	$match
 	 * @return	string
 	 */
@@ -701,7 +754,7 @@ class Xss {
 	/**
 	 * Do Never Allowed
 	 *
-	 * @used-by	Xss::xss_clean()
+	 * @used-by	Xss::clean()
 	 * @param 	string
 	 * @return 	string
 	 */
