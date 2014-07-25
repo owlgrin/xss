@@ -576,7 +576,7 @@ class Xss {
 	 */
 	protected function _remove_evil_attributes($str, $is_image)
 	{
-		$evil_attributes = array('on\w*', 'style', 'xmlns', 'formaction', 'form', 'action', 'xlink:href');
+		$evil_attributes = array('on\w*', 'xmlns', 'formaction', 'form', 'action', 'xlink:href');
 
 		if ($is_image === TRUE)
 		{
