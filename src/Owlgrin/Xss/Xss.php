@@ -182,7 +182,7 @@ class Xss {
 	 * @param 	bool		$is_image	Whether the input is an image
 	 * @return	string
 	 */
-	public function clean($str, $is_image = FALSE)
+	public function clean($str, $extraAllowedTags = [], $is_image = FALSE)
 	{
 		// Is the string an array?
 		if (is_array($str))
@@ -196,7 +196,7 @@ class Xss {
 		}
 
 		// Remove all the tags that aren't in the whitelist
-		$str = $this->strip_tags($str);
+		$str = $this->strip_tags($str, $extraAllowedTags);
 
 		// Remove Invisible Characters
 		$str = $this->remove_invisible_characters($str);
@@ -327,6 +327,7 @@ class Xss {
 
 		/*
 		 * Sanitize naughty HTML elements
+		 * (Not doing it, as we have stripped all the tags except those in white list)
 		 *
 		 * If a tag containing any of the words in the list
 		 * below is found, the tag gets converted to entities.
@@ -334,8 +335,9 @@ class Xss {
 		 * So this: <blink>
 		 * Becomes: &lt;blink&gt;
 		 */
-		$naughty = 'alert|prompt|confirm|applet|audio|basefont|base|behavior|bgsound|blink|body|embed|expression|form|frameset|frame|head|html|ilayer|iframe|input|button|select|isindex|layer|link|meta|keygen|object|plaintext|style|script|textarea|title|math|video|svg|xml|xss';
-		$str = preg_replace_callback('#<(/*\s*)('.$naughty.')([^><]*)([><]*)#is', array($this, '_sanitize_naughty_html'), $str);
+		// $naughty = 'alert|prompt|confirm|applet|audio|basefont|base|behavior|bgsound|blink|body|embed|expression|form|frameset|frame|head|html|ilayer|iframe|input|button|select|isindex|layer|link|meta|keygen|object|plaintext|style|script|textarea|title|math|video|svg|xml|xss';	
+
+		// $str = preg_replace_callback('#<(/*\s*)('.$naughty.')([^><]*)([><]*)#is', array($this, '_sanitize_naughty_html'), $str);
 
 		/*
 		 * Sanitize naughty scripting elements
@@ -385,9 +387,9 @@ class Xss {
 	 * @see		Xss::$allowed_html_tags
 	 * @return	string
 	 */
-	protected function strip_tags($str)
+	protected function strip_tags($str, $extraAllowedTags = [])
 	{
-		return strip_tags($str, implode('', $this->allowed_html_tags));
+		return strip_tags($str, implode('', array_merge($this->allowed_html_tags, $extraAllowedTags)));
 	}
 
 	// --------------------------------------------------------------------
