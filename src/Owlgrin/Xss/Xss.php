@@ -72,6 +72,7 @@ class Xss {
 	 * @var array
 	 */
 	protected $allowed_html_tags = array(
+		'<p>',
 		'<h1>',
 		'<h2>',
 		'<h3>',
