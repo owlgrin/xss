@@ -483,11 +483,11 @@ class Xss {
 			}
 
 			// Decode numeric & UTF16 two byte entities
-			$str = html_entity_decode(
-				preg_replace('/(&#(?:x0*[0-9a-f]{2,5}(?![0-9a-f;]))|(?:0*\d{2,4}(?![0-9;])))/iS', '$1;', $str),
-				$flag,
-				$charset
-			);
+			// $str = html_entity_decode(
+			// 	preg_replace('/(&#(?:x0*[0-9a-f]{2,5}(?![0-9a-f;]))|(?:0*\d{2,4}(?![0-9;])))/iS', '$1;', $str),
+			// 	$flag,
+			// 	$charset
+			// );
 		}
 		while ($str_compare !== $str);
 		return $str;
