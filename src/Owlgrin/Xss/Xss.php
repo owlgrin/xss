@@ -99,7 +99,8 @@ class Xss {
 		'<li>',
 		'<a>',
 		'<img>',
-		'<iframe>'
+		'<iframe>',
+		'<br>'
 	);
 
 	/**
