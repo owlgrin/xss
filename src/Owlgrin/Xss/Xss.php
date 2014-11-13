@@ -443,7 +443,7 @@ class Xss {
 		static $_entities;
 
 		isset($charset) OR $charset = $this->charset;
-		$flag = is_php('5.4')
+		$flag = phpversion() >= '5.4'
 			? ENT_COMPAT | ENT_HTML5
 			: ENT_COMPAT;
 
