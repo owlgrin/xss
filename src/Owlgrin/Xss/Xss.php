@@ -187,7 +187,7 @@ class Xss {
 	 * @param 	bool		$is_image	Whether the input is an image
 	 * @return	string
 	 */
-	public function clean($str, $extraAllowedTags = [], $is_image = FALSE)
+	public function clean($str, $extraAllowedTags = array(), $is_image = FALSE)
 	{
 		// Is the string an array?
 		if (is_array($str))
@@ -392,7 +392,7 @@ class Xss {
 	 * @see		Xss::$allowed_html_tags
 	 * @return	string
 	 */
-	protected function strip_tags($str, $extraAllowedTags = [])
+	protected function strip_tags($str, $extraAllowedTags = array())
 	{
 		return strip_tags($str, implode('', array_merge($this->allowed_html_tags, $extraAllowedTags)));
 	}
