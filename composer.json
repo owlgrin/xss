@@ -1,6 +1,7 @@
 {
     "name": "owlgrin/xss",
     "description": "Xss Sanitizer for Laravel",
+    "version": "0.1.1",
     "license": "MIT",
     "authors": [
         {
